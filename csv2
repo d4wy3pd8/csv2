@@ -1,14 +1,7 @@
 #!/usr/bin/perl -s
 
 use File::Basename;
-$gJcodePl = $0;
-($dummy1, $gJcodePl, $dummy2) = fileparse($gJcodePl);
-$gJcodePl =~ s/\/$//;
-$gJcodePl .= '/jcode.pl';
-if(-e $gJcodePl) { require $gJcodePl; }
-else {
-    print STDERR "Cannot find $gJcodePl\n"; exit(1);
-}
+use Jcode;
 
 ##======================================================================
 ## ¡Ú³µÍ×¡Û
@@ -242,7 +235,8 @@ if( $sMode eq 'tex' ) {
 
 $nLineTmp = 0 ;
 while( <> ) {
-    &jcode::convert( *_, 'euc' ) ;
+    $_ = Jcode->new($_)->euc;
+    #&jcode::convert( *_, 'euc' ) ;
     s/\r//g ;  s/\n//g ;
     $nElem = 0 ;
     while( $_ ne '' ) {
