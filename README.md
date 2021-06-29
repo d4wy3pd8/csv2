@@ -103,4 +103,6 @@
    ・このファイルを csv2 としてパスの通っているところに保存
    ・このファイルに csv2tex などの名前でシンボリックリンクを張ると
      csv2 -tex と同等のことができるようになる
+ 【もともとの場所】
+   https://web.archive.org/web/19990224123351/http://www.lab1.kuis.kyoto-u.ac.jp/~matchan/archives.html
 </pre>
