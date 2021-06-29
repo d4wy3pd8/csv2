@@ -1,0 +1,791 @@
+#!/usr/bin/perl -s
+
+use File::Basename;
+$gJcodePl = $0;
+($dummy1, $gJcodePl, $dummy2) = fileparse($gJcodePl);
+$gJcodePl =~ s/\/$//;
+$gJcodePl .= '/jcode.pl';
+if(-e $gJcodePl) { require $gJcodePl; }
+else {
+    print STDERR "Cannot find $gJcodePl\n"; exit(1);
+}
+
+##======================================================================
+## 【概要】
+##  デフォルトでは空白で整形されたテキスト形式の表に変換
+##    例) hoge,ahaha,ehehe
+##        4,20,8
+##        62,4,7
+##         ↓
+##        hoge ahaha ehehe
+##           4    20     8
+##          62     4     7
+##  他には‥‥
+##  1. HTML や TeX などの形式の表を CSV 形式のファイルから作る
+##     -tex, -html, -prn, -txt, -p2, -gplot
+##     TeX, HTML, スペース区切り, タブ区切り, Plain2, GNUPLOT
+##  2. CSV の形式変換
+##     -csv1, -csv2, -k3
+##     CSV1, CSV2, K3(桐) 形式の説明はスクリプトの末尾に
+## 【実行例】
+##   ・csv2 -tex datafile
+##   ・cat datafile | csv2html > data.html
+## 【入力】任意の漢字コード，改行形式，CSV 形式の CSV ファイル
+## 【出力】EUCで，動作させるＯＳネイティヴの改行形式を使った出力(標準出力)
+## 【使用法】
+## 【オプション】
+## ・動作
+##   -info  : 行数，カラム数の出力のみを行う
+## ・変換先の形式指定: どれか一つしか指定できない(当たり前だけど)
+##   -tex   : TeX (の tabular 環境の)形式に変換して出力する
+##   -html  : HTML (の TABLE)形式に変換して出力する
+##   -prn   : スペース区切り形式に変換して出力する(デフォルト)
+##    (Excel 上で，スペース区切りのファイルにつく拡張子が prn だったので)
+##   -txt   : タブ区切り形式に変換して出力する
+##    (Excel 上で，スペース区切りのファイルにつく拡張子が txt だったので)
+##   -p2    : plain2 形式に変換して出力する
+##   -gplot : gnuplot 形式に変換して出力する
+##   -csv1  : csv1 形式に変換して出力する(詳細はスクリプトの末尾に)
+##   -csv2  : csv2 形式に変換して出力する(詳細はスクリプトの末尾に)
+##   -k3    : k3 形式に変換して出力する(詳細はスクリプトの末尾に)
+## ・以降は -tex 〜 -gplot でのみ有効なオプション
+## ・寄せに関して
+##   -strright : 文字列を右寄せする
+##   -strleft  : 文字列を左寄せする(デフォルト)
+##   -strcent  : 文字列をセンタリングする
+## ・文字に関して
+##   -nospc       : 余分な空白を出力しない
+##    (レイアウトはぐちゃぐちゃになる)
+##   -ifnone      : 何もないセルをここで指定した文字列で埋める
+##    (指定がなければスクリプト内部で指定されている文字が挿入される)
+##   -ifnl        : -ifnone で指定した文字列を左寄せする(デフォルトは右寄せ)
+## ・数値の丸めについてのオプション
+##   -doround     : これを指定した時，丸めを行う
+##   -round       : 丸めの結果が小数点以下何桁までにするか(デフォルトは1)
+##   -roundmethod : 丸めの方法(=1は切捨て，=2は四捨五入，=3は切上げ)
+## ・抽出
+##   -lfrom : この行からのデータだけ扱う
+##    (指定がない(=0)時は最初の行)
+##   -lto   : この行までのデータだけ扱う
+##    (指定がない(=0)時は最後の行)
+##   -cfrom : このカラムからのデータだけ扱う
+##    (指定がない(=0)時は最初のカラム)
+##   -cto   : このカラムまでのデータだけ扱う
+##    (指定がない(=0)時は最後のカラム)
+##   -swap  : 行と列を入れ替える
+## ・番号などの追加
+##   -addlineno : 行番号を追加する
+##   -addclmnno : カラム番号を追加する
+##   -newlineno : -addlineno 指定時に行番号をこの番号で始める
+##   -newclmnno : -addclmnno 指定時にカラム番号をこの番号で始める
+##   -newclmndt : -addclmnno 指定時に第一行目をこの CSV リストを追加する
+##   -nolinenosep : -addlineno 指定時に行番号のカラムの右に
+##    特別なセパレータを入れない(plain2)
+##   -noclmnnosep : -addclmnno 指定時にカラム番号の行の下に
+##    特別なセパレータを入れない(plain2)
+## ・平均値などの追加
+##   -addnum : 最終行に各カラムのデータ数を追加する
+##    (addlineno は自動的にオンになる)
+##   -addave : 最終行に各カラムの平均値を追加する
+##    (addlineno は自動的にオンになる)
+##   -addvar : 最終行に各カラムの分散を追加する
+##    (addlineno は自動的にオンになる)
+##   -addsum : 最終行に各カラムの合計値を追加する
+##    (addlineno は自動的にオンになる)
+##   -addmax : 最終行に各カラムの最大値を追加する
+##    (addlineno は自動的にオンになる)
+##   -addmin : 最終行に各カラムの最小値を追加する
+##    (addlineno は自動的にオンになる)
+##   -addsqsum : 最終行に各カラムの２乗和を追加する
+##    (addlineno は自動的にオンになる)
+##   -addstddev : 最終行に各カラムの標準偏差を追加する
+##    (addlineno は自動的にオンになる)
+##   -assumezero : 平均値などの算出時に数字と認識できないカラムは
+##    数字0として件数にカウント，計算に利用する
+## 【必要なもの】perl(version 4 以降), jcode.pl
+## 【注意】
+##   ・デフォルトでは文字列は左寄せ，数値は右寄せ
+##   ・デフォルトでは空セルの場合は右寄せで指定された文字を出力
+##   ・デフォルトでは csv2prn として動く
+##   ・csv2tex なんて長い名前で面倒だという場合は csv2tex としてもＯＫ
+##     内部では，「2tex」の部分で判別している
+## 【インストール】
+##   ・このファイルを csv2 としてパスの通っているところに保存
+##   ・このファイルに csv2tex などの名前でシンボリックリンクを張ると
+##     csv2 -tex と同等のことができるようになる
+##======================================================================
+
+##----------------------------------------------------------------------
+## 動作の指定
+##----------------------------------------------------------------------
+
+if(    $0 =~ m/2tex/     ) {  $sMode = 'tex'   ;  }
+elsif( $0 =~ m/2html/    ) {  $sMode = 'html'  ;  }
+elsif( $0 =~ m/2prn/     ) {  $sMode = 'prn'   ;  }
+elsif( $0 =~ m/2txt/     ) {  $sMode = 'txt'   ;  }
+elsif( $0 =~ m/2p2/      ) {  $sMode = 'p2'    ;  }
+elsif( $0 =~ m/2gplot/   ) {  $sMode = 'gplot' ;  }
+elsif( $0 =~ m/2csv1/    ) {  $sMode = 'csv1' ;  }
+elsif( $0 =~ m/2csv2/    ) {  $sMode = 'csv2' ;  }
+elsif( $0 =~ m/2k3/      ) {  $sMode = 'k3' ;  }
+else                       {  $sMode = ''      ;  }
+
+##----------------------------------------------------------------------
+## 引数の解析
+##----------------------------------------------------------------------
+
+## ヘルプ表示
+if( $h || $help ) {  &usage ;  }
+
+## -ifnone : '' : 何もないセルをここで指定した文字列で埋める
+## (指定がなければスクリプト内部で指定されている文字が挿入される) :
+if( $ifnone eq '' ) {  $ifnone = '' ;  }
+
+## -round : 1,-64,64 : 丸めの結果が小数点以下何桁までにするか :
+if( $round eq '' ) {  $round = 1 ;  }
+if( $round < -64 || 64 < $round ) {  &usage ;  }
+
+## -roundmethod : 2,1,3 : 丸めの方法(1は切捨て，2は四捨五入，3は切上げ) :
+if( $roundmethod eq '' ) {  $roundmethod = 2 ;  }
+if( $roundmethod < 1 || 3 < $roundmethod ) {  &usage ;  }
+
+## -lfrom : 0,0,100000 : この行からのデータだけ扱う
+## (指定がない(=0)時は最初の行) :
+if( $lfrom eq '' ) {  $lfrom = 0 ;  }
+if( $lfrom < 0 || 100000 < $lfrom ) {  &usage ;  }
+
+## -lto : 0,0,100000 : この行までのデータだけ扱う(指定がない(=0)時は最後の行) :
+if( $lto eq '' ) {  $lto = 0 ;  }
+if( $lto < 0 || 100000 < $lto ) {  &usage ;  }
+
+## -cfrom : 0,0,100000 : このカラムからのデータだけ扱う
+## (指定がない(=0)時は最初のカラム) :
+if( $cfrom eq '' ) {  $cfrom = 0 ;  }
+if( $cfrom < 0 || 100000 < $cfrom ) {  &usage ;  }
+
+## -cto : 0,0,100000 : このカラムまでのデータだけ扱う
+## (指定がない(=0)時は最後のカラム) :
+if( $cto eq '' ) {  $cto = 0 ;  }
+if( $cto < 0 || 100000 < $cto ) {  &usage ;  }
+
+## -newlineno : '' : -addlineno 指定時に行番号をこの番号で始める :
+if( $newlineno eq '' ) {  $newlineno = '' ;  }
+
+## -newclmnno : '' : -addclmnno 指定時にカラム番号をこの番号で始める :
+if( $newclmnno eq '' ) {  $newclmnno = '' ;  }
+
+## -newclmndt : '' : -addclmnno 指定時に第一行目をこの CSV リストを追加する :
+if( $newclmndt eq '' ) {  $newclmndt = '' ;  }
+
+## コマンド名で指定していない場合
+if( $sMode eq '' ) {
+    if(    $tex   ) {  $sMode = 'tex'   ;  }
+    elsif( $html  ) {  $sMode = 'html'  ;  }
+    elsif( $prn   ) {  $sMode = 'prn'   ;  }
+    elsif( $txt   ) {  $sMode = 'txt'   ;  }
+    elsif( $p2    ) {  $sMode = 'p2'    ;  }
+    elsif( $gplot ) {  $sMode = 'gplot' ;  }
+    elsif( $csv1  ) {  $sMode = 'csv1'  ;  }
+    elsif( $csv2  ) {  $sMode = 'csv2'  ;  }
+    elsif( $k3    ) {  $sMode = 'k3'    ;  }
+    else            {  $sMode = 'prn'   ;  }
+}
+
+## エントリが空の場合の代替文字
+if( $sMode eq 'tex' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '-' ;  }
+} elsif( $sMode eq 'html' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '-' ;  }
+} elsif( $sMode eq 'prn' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '-' ;  }
+} elsif( $sMode eq 'txt' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '-' ;  }
+} elsif( $sMode eq 'gplot' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '0' ;  }
+} elsif( $sMode eq 'p2' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '-' ;  }
+} elsif( $sMode eq 'csv1' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '' ;  }
+} elsif( $sMode eq 'csv2' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '' ;  }
+} elsif( $sMode eq 'k3' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '' ;  }
+}
+
+##----------------------------------------------------------------------
+## ファイルの読み込み
+##----------------------------------------------------------------------
+## アルゴリズム:
+##                        ┌───────────┐""
+##                        │                      │"以外
+##  ┌──┐    " ┌─┐  ↓ "以外┌───┐      │  ┌─┐
+##  │セル├─┬─┤" ├───┬─┤" 以外├───┴─┤" ├───→
+##  └──┘  │  └─┘      │" │文字列│  ↑    " └─┘  ↑
+##            │"以外         │  └───┘  │              │
+##            │              │    ┌─┐    │              │
+##            │              └──┤""├──┘              │
+##            │                    └─┘                    │
+##            │                  ┌───┐                  │
+##            └─────────┤" 以外├─────────┘
+##                                │文字列│
+##                                └───┘
+##----------------------------------------------------------------------
+
+$nLineTmp = 0 ;
+while( <> ) {
+    &jcode::convert( *_, 'euc' ) ;
+    s/\r//g ;  s/\n//g ;
+    $nElem = 0 ;
+    while( $_ ne '' ) {
+        $sElem = '' ;
+        if( m/^"/ ) {
+            s/^"// ;
+            do {
+                if( m/^""/ ) {  $sElem .= '"' ;  s/^""// ;  }
+                  else       {  s/^([^"]*)// ;  $sElem .= $1 ;  }
+            } while( m/^""/ || m/^[^"]/ ) ;
+            s/^"// ;
+        } else {
+            s/^([^,]*)// ;  $sElem = $1 ;
+        }
+        $Line[$nElem] = $sElem ;
+        $Line[$nElem] =~ s/^\s+//g ;  ## セルの頭と末尾の空白文字を削除
+        $Line[$nElem] =~ s/\s+$//g ;
+        if( $debug ) {  print STDERR "[[$Line[$nElem]]]" ;  }
+        if($doround && &isNum($Line[$nElem])) {
+            if( $debug ) {
+              print STDERR "<<$Line[$nElem], $round, $roundmethod>>\n" ;
+            }
+            $Line[$nElem] = &roundFunc( $Line[$nElem], $round, $roundmethod ) ;
+        }
+        $FileTmp{$nLineTmp,$nElem} = $Line[$nElem] ;
+        $nElem++ ;
+        if( m/^,/ ) {  s/^,// ;  }
+    }
+    $nMaxElemTmp = ( $nElem > $nMaxElemTmp ? $nElem : $nMaxElemTmp ) ;
+    $nLineTmp++ ;
+}
+
+## 入れ替え
+if( $swap ) {
+    for( $i = 0 ; $i < $nLineTmp ; $i++ ) {
+        for( $j = 0 ; $j < $nMaxElemTmp ; $j++ ) {
+            $FileTmp2{$i,$j} = $FileTmp{$i,$j} ;
+        }
+    }
+    for( $i = 0 ; $i < $nLineTmp ; $i++ ) {
+        for( $j = 0 ; $j < $nMaxElemTmp ; $j++ ) {
+            $FileTmp{$j,$i} = $FileTmp2{$i,$j} ;
+        }
+    }
+    $tmp = $nLineTmp ;
+    $nLineTmp = $nMaxElemTmp ;
+    $nMaxElemTmp = $tmp ;
+}
+
+##----------------------------------------------------------------------
+## -info の場合
+##----------------------------------------------------------------------
+
+if( $info ) {
+    print STDERR "行数: $nLineTmp\n(最大)カラム数: $nMaxElemTmp\n" ;
+    exit( 0 ) ;
+}
+
+##----------------------------------------------------------------------
+## データの抽出
+##----------------------------------------------------------------------
+
+## 平均値などの行を追加する場合
+if( $addnum || $addave || $addvar || $addsum
+   || $addmax || $addmin || $addsqsum || $addstddev ) {  $addlineno = 1 ;  }
+
+## 範囲のチェック
+if( $lfrom == 0 ) {  $lfrom = 1 ;  }
+if( $lto == 0 || $nLineTmp < $lto ) {  $lto = $nLineTmp ;  }
+if( $cfrom == 0 ) {  $cfrom = 1 ;  }
+if( $cto == 0 || $nMaxElemTmp < $cto ) {  $cto = $nMaxElemTmp ;  }
+
+$nLine = $lto - $lfrom + 1 ;
+$nMaxElem = $cto - $cfrom + 1 ;
+
+if( $nLine <= 0 ) {
+  print STDERR "終了行番号が開始行番号よりも小さいです\n" ;  exit( 1 ) ;
+}
+if( $nMaxElem <= 0 ) {
+  print STDERR "終了カラム番号が開始カラム番号よりも小さいです\n" ; exit( 1 );
+}
+
+## 第一行目の指定があれば
+if( $newclmndt ) {
+    @sNewClmnDt = split( /,/, $newclmndt ) ;
+    $nNewClmnDt = scalar( @sNewClmnDt ) ;
+}
+
+## 行番号，カラム番号の追加のために秘かにデータを追加しておく
+if( $newlineno eq '' ) {  $newlineno = $lfrom ;  }
+if( $newclmnno eq '' ) {  $newclmnno = $cfrom ;  }
+if( $addlineno ) {
+    for( $i = 0 ; $i < $nLine ; $i++ ) {
+        $File{$i+$addclmnno,0} = $newlineno + $i ;
+    }
+}
+if( $addclmnno ) {
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        if( $newclmndt ) {  $File{0,$i+$addlineno} = $sNewClmnDt[$i] ;  }
+        else             {  $File{0,$i+$addlineno} = $newclmnno + $i ;  }
+    }
+}
+if( $addlineno ) {  $nMaxElem++ ;  }
+if( $addclmnno ) {  $nLine++ ;  }
+
+## 転送
+for( $i = 0 ; $i < $nLine ; $i++ ) {
+    for( $j = 0 ; $j < $nMaxElem ; $j++ ) {
+        $tmpdt = $FileTmp{$i+$lfrom-1,$j+$cfrom-1} ;
+        $File{$i+$addclmnno,$j+$addlineno} = $tmpdt ;
+        ## 数字なら
+        if( $tmpdt eq $tmpdt + 0 || $assumezero ) {
+            ## 平均などを求めるため
+            $tmpdt = $tmpdt + 0 ;
+            $nElemOnClmn[$j]++ ;
+            $iSumOnClmn[$j] += $tmpdt ;
+            $iSqSumOnClmn[$j] += $tmpdt ** 2 ;
+            ## 最大，最小を求めるため
+            if( $iMinOnClmn[$j] eq '' ) {
+                $iMinOnClmn[$j] = $tmpdt ;
+                $iMaxOnClmn[$j] = $tmpdt ;
+            } else {
+                $iMinOnClmn[$j]
+                  = ( $iMinOnClmn[$j] < $tmpdt ? $iMinOnClmn[$j] : $tmpdt ) ;
+                $iMaxOnClmn[$j]
+                  = ( $iMaxOnClmn[$j] > $tmpdt ? $iMaxOnClmn[$j] : $tmpdt ) ;
+            }
+        }
+    }
+}
+
+if( $debug4heikin ) {
+    print STDERR <<__DATA__;
+$nElemOnClmn[0],$nElemOnClmn[1],$nElemOnClmn[2],$nElemOnClmn[3]
+$iSumOnClmn[0],$iSumOnClmn[1],$iSumOnClmn[2],$iSumOnClmn[3]
+$iSqSumOnClmn[0],$iSqSumOnClmn[1],$iSqSumOnClmn[2],$iSqSumOnClmn[3]
+$iMinOnClmn[0],$iMinOnClmn[1],$iMinOnClmn[2],$iMinOnClmn[3]
+$iMaxOnClmn[0],$iMaxOnClmn[1],$iMaxOnClmn[2],$iMaxOnClmn[3]
+__DATA__
+}
+
+## 平均値などの追加
+if( $addnum ) {
+    $File{$nLine,0} = '件数' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        $File{$nLine,$i+1} = $nElemOnClmn[$i] + 0 ;
+        if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+            $File{$nLine,$i+1}
+              = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+        }
+    }
+    $nLine++ ;
+}
+if( $addave ) {
+    $File{$nLine,0} = '平均' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        if( $nElemOnClmn[$i] == 0 ) {  $File{$nLine,$i+1} = '-' ;  }
+        else {
+            $File{$nLine,$i+1} = $iSumOnClmn[$i] / $nElemOnClmn[$i] ;
+            if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+                $File{$nLine,$i+1}
+                  = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+            }
+        }
+    }
+    $nLine++ ;
+}
+if( $addvar ) {
+    $File{$nLine,0} = '分散' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        if( $nElemOnClmn[$i] == 0 ) {  $File{$nLine,$i+1} = '-' ;  }
+        else {
+            $File{$nLine,$i+1} = $iSqSumOnClmn[$i] / $nElemOnClmn[$i] ;
+            if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+                $File{$nLine,$i+1}
+                  = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+            }
+        }
+    }
+    $nLine++ ;
+}
+if( $addsum ) {
+    $File{$nLine,0} = '合計' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        $File{$nLine,$i+1} = $iSumOnClmn[$i] ;
+        if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+            $File{$nLine,$i+1}
+              = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+        }
+    }
+    $nLine++ ;
+}
+if( $addmax ) {
+    $File{$nLine,0} = '最大' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        $File{$nLine,$i+1} = $iMaxOnClmn[$i] ;
+        if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+            $File{$nLine,$i+1}
+              = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+        }
+    }
+    $nLine++ ;
+}
+if( $addmin ) {
+    $File{$nLine,0} = '最小' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        $File{$nLine,$i+1} = $iMinOnClmn[$i] ;
+        if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+            $File{$nLine,$i+1}
+              = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+        }
+    }
+    $nLine++ ;
+}
+if( $addsqsum ) {
+    $File{$nLine,0} = '２乗和' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        $File{$nLine,$i+1} = $iSqSumOnClmn[$i] ;
+        if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+            $File{$nLine,$i+1}
+              = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+        }
+    }
+    $nLine++ ;
+}
+if( $addstddev ) {
+    $File{$nLine,0} = '標準偏差' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        if( $nElemOnClmn[$i] == 0 ) {  $File{$nLine,$i+1} = '-' ;  }
+        else {
+            $File{$nLine,$i+1} = sqrt( $iSqSumOnClmn[$i] / $nElemOnClmn[$i] ) ;
+            if( $doround && $File{$nLine,$i+1} eq $File{$nLine,$i+1} + 0 ) {
+                $File{$nLine,$i+1}
+                  = &roundFunc( $File{$nLine,$i+1}, $round, $roundmethod ) ;
+            }
+        }
+    }
+    $nLine++ ;
+}
+
+## デバッグ用に表示してみる
+## (こういう風に変数を使えばよい，というメモでもあったりする (^_^;) )
+if( $debug ) {
+    print STDERR "\n----\n\n" ;
+    for( $i = 0 ; $i < $nLine ; $i++ ) {
+        for( $j = 0 ; $j < $nMaxElem ; $j++ ) {
+            print STDERR "[$File{$i,$j}]" ;
+        }
+        print STDERR "\n" ;
+    }
+}
+
+##----------------------------------------------------------------------
+## 各データの長さの最大値を求める
+##----------------------------------------------------------------------
+
+for( $i = 0 ; $i < $nLine ; $i++ ) {
+    for( $j = 0 ; $j < $nMaxElem ; $j++ ) {
+##        if( $File{$i,$j} eq '' ) {  $File{$i,$j} = $sIfNone ;  }
+        $k = length( $File{$i,$j} ) ;
+        $iMaxStrLen[$j] = ( $k > $iMaxStrLen[$j] ? $k : $iMaxStrLen[$j] ) ;
+    }
+}
+
+$iSumMaxStrLen = 0 ;
+for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+    $iSumMaxStrLen += $iMaxStrLen[$i] ;
+}
+
+##----------------------------------------------------------------------
+## 各ヘッダフッタなどを定義
+##----------------------------------------------------------------------
+
+if( $sMode eq 'tex' ) {
+    $sHeader = '\begin{tabular}{||' ;
+    for( $i = 0 ; $i < $nMaxElem ; $i++ ) {
+        if( $i == 1 && $addlineno && !$nolinenosep ) {  $sHeader .= '|c|' ;  }
+        else                                         {  $sHeader .= 'c|' ;  }
+    }
+    $sHeader .= '|}\hline \hline' ;
+
+    $sTagTop = "\n" ;  $sSep = ' & ' ;  $sTagButtom = ' \\\\ \hline' ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = ' \hline' ;
+    $sFooter = ' \hline'."\n".'\end{tabular}'."\n" ;
+} elsif( $sMode eq 'html' ) {
+    $sHeader = '<TABLE BORDER>'."\n\n" ;
+    $sTagTop = '<TR>'."\n".' <TD>' ;  $sSep = '</TD>'."\n".' <TD>' ;
+    $sTagButtom = '</TD>'."\n".'</TR>'."\n\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '</TABLE>'."\n" ;
+} elsif( $sMode eq 'prn' ) {
+    $sHeader = '' ;
+    $sTagTop = '' ;  $sSep = ' ' ;  $sTagButtom = "\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '' ;
+} elsif( $sMode eq 'txt' ) {
+    $sHeader = '' ;
+    $sTagTop = '' ;  $sSep = "\t" ;  $sTagButtom = "\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '' ;
+} elsif( $sMode eq 'gplot' ) {
+    $sHeader = '' ;
+    $sTagTop = '' ;  $sSep = ' ' ;  $sTagButtom = "\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '' ;
+} elsif( $sMode eq 'p2' ) {
+    $sHeader = '='x($iSumMaxStrLen+3*($nMaxElem-1)+6
+                    +($addlineno && !$nolinenosep))."\n" ;
+    $sTagTop = '|| ' ;  $sSep = ' | ' ;  $sTagButtom = ' ||'."\n" ;
+    $sSep4LineNoSep = ' || ' ;
+    $sLineSep = '-'x($iSumMaxStrLen+3*($nMaxElem-1)+6
+                     +($addlineno && !$nolinenosep))."\n" ;
+    $sLineSep4ClmnNoSep = $sHeader ;
+    $sFooter = '='x($iSumMaxStrLen+3*($nMaxElem-1)+6
+                    +($addlineno && !$nolinenosep))."\n" ;
+} elsif( $sMode eq 'csv1' ) {
+    $sHeader = '' ;
+    $sTagTop = '' ;  $sSep = ',' ;  $sTagButtom = "\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '' ;
+    $nospc = 1 ;
+} elsif( $sMode eq 'csv2' ) {
+    $sHeader = '' ;
+    $sTagTop = '' ;  $sSep = ',' ;  $sTagButtom = "\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '' ;
+    $nospc = 1 ;
+} elsif( $sMode eq 'k3' ) {
+    $sHeader = '' ;
+    $sTagTop = '' ;  $sSep = ',' ;  $sTagButtom = "\n" ;
+    $sSep4LineNoSep = $sSep ;
+    $sLineSep = '' ;
+    $sLineSep4ClmnNoSep = $sLineSep ;
+    $sFooter = '' ;
+    $nospc = 1 ;
+} else {
+    print STDERR "バグ？\n" ;
+    exit( 1 ) ;
+}
+
+##----------------------------------------------------------------------
+## 表示
+##----------------------------------------------------------------------
+
+print $sHeader ;
+
+for( $i = 0 ; $i < $nLine ; $i++ ) {
+    unless( $i == 0 ) {
+        if( $i == 1 && $addclmnno && !$noclmnnosep ) {
+            print $sLineSep4ClmnNoSep ;
+        } else {
+            print $sLineSep;
+        }
+    }
+    print $sTagTop ;
+    for( $j = 0 ; $j < $nMaxElem ; $j++ ) {
+        unless( $j == 0 ) {
+            if( $j == 1 && $addlineno && !$nolinenosep ) {
+                print $sSep4LineNoSep ;
+            } else {
+                print $sSep;
+            }
+        }
+
+        ## CSV1, CSV2, K3 なら，`"' のエスケープをする
+        if( ( $sMode eq 'csv1' || $sMode eq 'csv2' || $sMode eq 'k3' )
+            && $File{$i,$j} =~ m/"/ ) {
+            $File{$i,$j} =~ s/"/""/g ;
+            if( $sMode eq 'csv2' ) {
+                $File{$i,$j} = "\"$File{$i,$j}\"" ;
+            }
+        }
+
+        ## CSV1, K3 なら，文字列の前後に強制的に "" をつける
+        if( ( $sMode eq 'csv1' && $File{$i,$j} ne ''
+                               && $File{$i,$j} + 0 ne $File{$i,$j} )
+         || ( $sMode eq 'k3'   && $File{$i,$j} + 0 ne $File{$i,$j} ) ) {
+            $File{$i,$j} = "\"$File{$i,$j}\"" ;
+        }
+
+        if( $sMode eq 'html' || $sMode eq 'txt' || $nospc ) {
+            ## 空セルの場合
+            if( $File{$i,$j} eq '' ) {
+                print $sIfNone ;
+            } else {
+                print $File{$i,$j} ;
+            }
+        } else {
+            $nSpc = $iMaxStrLen[$j]-length($File{$i,$j}) ;
+
+            ## 空セルの場合
+            if( $File{$i,$j} eq '' ) {
+                $File{$i,$j} = $sIfNone ;
+                $nSpc = $iMaxStrLen[$j]-length($File{$i,$j}) ;
+                if( $ifnl ) {  print $File{$i,$j}.' 'x($nSpc) ;  }
+                else        {  print ' 'x($nSpc).$File{$i,$j} ;  }
+
+            ## 数値データ || 文字列右寄せの場合
+            } elsif(&isNum($File{$i,$j}) || $strright ) {
+                print ' 'x($nSpc).$File{$i,$j} ;
+
+            ## センタリング
+            } elsif( $strcent ) {
+                $nSpcRight = int($nSpc/2) ;
+                $nSpcLeft  = $nSpc - $nSpcRight ;
+                ## もし最後の列なら余計なスペースを後ろにつけない
+                if( $sMode eq 'prn' && $j == $nMaxElem - 1 ) {
+                    print ' 'x($nSpcLeft).$File{$i,$j} ;
+                } else {
+                    print ' 'x($nSpcLeft).$File{$i,$j}.' 'x($nSpcRight) ;
+                }
+            ## 左寄せ
+            } else {
+                ## もし最後の列なら余計なスペースを後ろにつけない
+                if( $sMode eq 'prn' && $j == $nMaxElem - 1 ) {
+                    print $File{$i,$j} ;
+                } else {
+                    print $File{$i,$j}.' 'x($nSpc) ;
+                }
+            }
+        }
+    }
+    print $sTagButtom ;
+}
+
+print $sFooter ;
+
+##----------------------------------------------------------------------
+## 丸め用関数
+##----------------------------------------------------------------------
+
+sub roundFunc
+{
+    local( $val ) = shift ;
+    local( $round ) = shift ;
+    local( $method ) = shift ;
+    local( $iVal2Shift ) = 10 ** $round ;
+
+    if( $debug ) {  print STDERR "<<<$iVal2Shift>>>\n" ;  }
+    if( $method == 1 ) {  ## 切り捨て
+        $val = int( $iVal2Shift * $val - ( $val < 0 ) ) / $iVal2Shift ;
+    } elsif( $method == 2 ) {  ## 四捨五入
+        $val = int( $iVal2Shift * $val - ( $val < 0 ) + 0.5 ) / $iVal2Shift ;
+    } elsif( $method == 3 ) {  ## 切り上げ
+        $val = int( $iVal2Shift * $val - ( $val < 0 ) + 1 ) / $iVal2Shift ;
+    } else {
+        $val = '[ROUND ERR]' ;
+    }
+    return( $val ) ;
+}
+
+##----------------------------------------------------------------------
+## 数値かどうか判定
+##----------------------------------------------------------------------
+sub isNum
+{
+  local($elem) = shift;
+  if($elem =~ m/^(\+|\-)?[0-9]+(\.([0-9]+)?)?$/) { return(1); }
+  return(0);
+}
+
+##----------------------------------------------------------------------
+## show the usage
+##----------------------------------------------------------------------
+
+sub usage {
+    local( $heading_first_line )            = '^##=' ;
+    local( $heading_first_chars_to_delete ) = '^## ?' ;
+    local( $heading_last_line )             = '^##=' ;
+
+    ## open this perl program file itself
+    open( THISFILE, __FILE__ ) ;
+
+    ## skip until the first line of the heading
+    while( <THISFILE> ) {  if( m/$heading_first_line/ ) {  last ;  }  }
+
+    ## show comments in the heading
+    while( <THISFILE> ) {
+        if( m/$heading_last_line/ ) {  last ;  }
+        else {  s/$heading_first_chars_to_delete// ;  print STDERR ;  }
+    }
+
+    ## close this file
+    close( THISFILE ) ;  exit( 0 ) ;
+}
+
+##----------------------------------------------------------------------
+## 参考文献:
+##   [1] http://www.microsoft.com/japan/support/kb/articles/J014/1/20.htm
+##
+## CSV ファイル
+##
+## カンマで列を区切られたレコードを表現するテキストファイルで、主に表計算
+## やデータベース管理システムアプリケーション間でのデータのやり取りに使用
+## されます。一般的には 2 つの形式があり、それぞれ CSV1、CSV2 と呼ばれるこ
+## とがあります。
+##   * CSV1 : レコード形式を持ったデータを表すフォーマットで、レコードの終
+##     わりに CR/LF コードが入り、各列間はカンマで区切られます。列の内容が
+##     文字列の場合には、その前後をダブルクォーテーションで囲みます。空白
+##     の列は何も書かずにカンマを続けます。
+##   * CSV2 : CSV1 とほぼ同じですが、列の内容が文字列であってもダブルクォ
+##     ーテーションで囲みません。
+##
+## これらと大変によく似た K3 というファイル形式があります。これは管理工学
+## 研究所社のデータベース管理システム「桐」で使われているフォーマットで、
+## CSV1 とほぼ同じですが、空白の列はダブルクォーテーションを二つ続けた後に
+## カンマで区切ります。
+## Excel 95 では、CSV1 の形式であっても CSV2 の形式であっても読み込むこと
+## ができます。しかし出力形式は CSV2 を元にして、含まれる文字によっては例
+## 外的な処理が行われます。
+##  1. データ中に「"」文字が使用されたとき。
+##     「"」は、CSV のデリミタとしての意味を持っていますので、文字として表
+##     したいときには、「""」と二つつなげて表現されます。また、データ全体
+##     も「"」で自動的に囲まれます (この意味では CSV1 形式)。
+##  2. データの先頭に「'」が使用されたとき。
+##     「'」はセル内では後に文字列が続くことを示す Excel 95 独自の特別な文
+##     字で、これはテキストファイルとして出力されません。データの途中にあ
+##     る「'」はデータとして取り扱われます。
+##  3. 表示形式がセルに設定されているとき。
+##     Excel 95 では、セルに表示されている内容にできるだけ近い形でテキスト
+##     ファイルに出力します。「%」表示や、「\」、「$」、日付／時刻などセル
+##     上に見えているまま、出力されます。
+##     また、「,」を含む表示形式 (通貨や数値など、3 桁ごとの「桁区切り」の
+##     ように途中に「,」が入っている表示形式) がセルに設定されているときは
+##     、データの前後をダブルクォーテーションで囲みます ("12,345")。これは
+##     、列の区切りの「,」と区別するためです。
+##----------------------------------------------------------------------
+## 各アプリケーションの CSV 形式メモ
+##  1. CSV1 - noel
+##  2. CSV2 - 携快電話CE,松本の研究用
+##  3. K3   - 携快電話CSV(=携快電話KKV),noel
+##----------------------------------------------------------------------
