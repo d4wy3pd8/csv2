@@ -116,6 +116,7 @@ if(    $0 =~ m/2tex/     ) {  $sMode = 'tex'   ;  }
 elsif( $0 =~ m/2html/    ) {  $sMode = 'html'  ;  }
 elsif( $0 =~ m/2prn/     ) {  $sMode = 'prn'   ;  }
 elsif( $0 =~ m/2txt/     ) {  $sMode = 'txt'   ;  }
+elsif( $0 =~ m/2org/     ) {  $sMode = 'org'   ;  }
 elsif( $0 =~ m/2p2/      ) {  $sMode = 'p2'    ;  }
 elsif( $0 =~ m/2gplot/   ) {  $sMode = 'gplot' ;  }
 elsif( $0 =~ m/2csv1/    ) {  $sMode = 'csv1' ;  }
@@ -176,6 +177,7 @@ if( $sMode eq '' ) {
     elsif( $html  ) {  $sMode = 'html'  ;  }
     elsif( $prn   ) {  $sMode = 'prn'   ;  }
     elsif( $txt   ) {  $sMode = 'txt'   ;  }
+    elsif( $org   ) {  $sMode = 'org'   ;  }
     elsif( $p2    ) {  $sMode = 'p2'    ;  }
     elsif( $gplot ) {  $sMode = 'gplot' ;  }
     elsif( $csv1  ) {  $sMode = 'csv1'  ;  }
@@ -200,6 +202,9 @@ if( $sMode eq 'tex' ) {
 } elsif( $sMode eq 'gplot' ) {
     if( $ifnone ) {  $sIfNone = $ifnone ;  }
     else          {  $sIfNone = '0' ;  }
+} elsif( $sMode eq 'org' ) {
+    if( $ifnone ) {  $sIfNone = $ifnone ;  }
+    else          {  $sIfNone = '-' ;  }
 } elsif( $sMode eq 'p2' ) {
     if( $ifnone ) {  $sIfNone = $ifnone ;  }
     else          {  $sIfNone = '-' ;  }
@@ -562,6 +567,24 @@ if( $sMode eq 'tex' ) {
     $sLineSep4ClmnNoSep = $sHeader ;
     $sFooter = '='x($iSumMaxStrLen+3*($nMaxElem-1)+6
                     +($addlineno && !$nolinenosep))."\n" ;
+} elsif( $sMode eq 'org' ) {
+    $sHeader = '-'x($iSumMaxStrLen+3*($nMaxElem-1)+4
+                    +($addlineno && !$nolinenosep))."\n" ;
+    $sTagTop = '| ' ;  $sSep = ' | ' ;  $sTagButtom = ' |'."\n" ;
+    $sSep4LineNoSep = ' | ' ;
+    $sLineSep = '|';
+    for( $j = 0 ; $j < $nMaxElem ; $j++ ) {
+      if($j > 0) { $sLineSep .= '+'; }
+      $sLineSep .= '-'x($iMaxStrLen[$j]+2);
+    }
+    $sLineSep .= "|\n";
+    #$sLineSep = '-'x($iSumMaxStrLen+3*($nMaxElem-1)+4
+    #                 +($addlineno && !$nolinenosep))."\n" ;
+    $sLineSep4ClmnNoSep = $sHeader ;
+    $sFooter = '-'x($iSumMaxStrLen+3*($nMaxElem-1)+4
+                    +($addlineno && !$nolinenosep))."\n" ;
+    $sFooter = $sLineSep;
+    $sHeader = $sLineSep;
 } elsif( $sMode eq 'csv1' ) {
     $sHeader = '' ;
     $sTagTop = '' ;  $sSep = ',' ;  $sTagButtom = "\n" ;
